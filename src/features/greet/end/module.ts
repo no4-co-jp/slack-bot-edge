@@ -32,6 +32,8 @@ export const toBlocks = (date: Date): AnySendableMessageBlock[] => {
           format(date, "H:00") +
             "を過ぎました。そろそろ皆さん終了の時間かと思います。",
           "本日も1日、お疲れ様でした。:chatwork_ありがとう:",
+          ,
+          "休みや出社日の変更は[こちら](https://no4-chat.slack.com/canvas/CQYH702Q4?focus_section_id=temp:C:cUL36314564bcff4c80a892852b3)から",
         ].join("\n"),
       },
     },

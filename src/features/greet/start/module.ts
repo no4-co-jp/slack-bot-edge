@@ -181,7 +181,8 @@ export const toBlocks = (
                 ? `\n\`\`\`${toUserNames(reactionRecord.users).join(
                     ", "
                   )}\`\`\``
-                : ``),
+                : ``) +
+                `\n休みや出社日の変更は[こちら](https://no4-chat.slack.com/canvas/CQYH702Q4?focus_section_id=temp:C:cUL36314564bcff4c80a892852b3)から`,
           },
         };
       }
