@@ -53,3 +53,12 @@ jobs:
             --minify
         env:
           WORKER_NAME: greet-end-batch
+      - name: Deploy generate-sheet-batch
+        run: |
+          npx wrangler deploy \
+            src/workers/${{ env.WORKER_NAME }}.ts \
+            --name ${{ env.WORKER_NAME }} \
+            --keep-vars \
+            --minify
+        env:
+          WORKER_NAME: generate-sheet-batch
