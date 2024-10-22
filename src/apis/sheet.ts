@@ -10,15 +10,14 @@ export type Env = {
   OAUTH_CLIENT_ID: string;
   OAUTH_CLIENT_SECRET: string;
   REFRESH_TOKEN: string;
+  AUTHORIZATION_CODE: string;
 };
 
-type Properties = {
-  sheets: {
-    properties: {
-      sheetId: number;
-      title: string;
-    };
-  }[];
+type Sheet = {
+  properties: {
+    sheetId: number;
+    title: string;
+  };
 };
 
 export const fetchAllUsers = async (env: Env, date: Date): Promise<string[]> => {
@@ -64,12 +63,13 @@ export const isBusinessHoliday = async (env: Env, date: Date): Promise<boolean> 
 
 // ---
 
-export const generateNextMonthSheet = async (env: Env, date: Date): Promise<Response> => {
-  const accessToken = await fetchAccessToken(env);
-
-  const sheetName = await duplicateSheet(env, date, accessToken);
-  console.log(sheetName);
-
+export const generateNextMonthSheet = async (
+  env: Env,
+  date: Date,
+  targetSheet: string,
+  accessToken: string
+): Promise<void> => {
+  // 1日
   date.setDate(1);
   const firstOfMonth = format(date, "yyyy/MM/dd");
   console.log(firstOfMonth);
@@ -77,7 +77,7 @@ export const generateNextMonthSheet = async (env: Env, date: Date): Promise<Resp
   const request = new Request(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
       env.GOOGLE_SHEET_ID_WFO
-    )}/values/${encodeURIComponent(sheetName)}!A4?valueInputOption=USER_ENTERED`
+    )}/values/${encodeURIComponent(targetSheet)}!A4?valueInputOption=USER_ENTERED`
   );
 
   const response = await fetch(request, {
@@ -88,7 +88,7 @@ export const generateNextMonthSheet = async (env: Env, date: Date): Promise<Resp
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      range: sheetName + "!A4",
+      range: targetSheet + "!A4",
       majorDimension: "ROWS",
       values: [[firstOfMonth]],
     }),
@@ -99,9 +99,8 @@ export const generateNextMonthSheet = async (env: Env, date: Date): Promise<Resp
   } else {
     const error = await response.json();
     console.error(error);
+    throw new Error("generate next month sheet failed");
   }
-
-  return response;
 };
 
 // ---
@@ -164,7 +163,7 @@ const fetchSheets = async (env: Env, range: string): Promise<string[][]> => {
 
 // ---
 
-const fetchSheetProperties = async (env: Env): Promise<Properties> => {
+const fetchSheetProperties = async (env: Env): Promise<Sheet[]> => {
   const request = new Request(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID_WFO)}`
   );
@@ -172,26 +171,23 @@ const fetchSheetProperties = async (env: Env): Promise<Properties> => {
 
   const response = await fetch(request);
   if (response.ok) {
-    console.log(response.status);
+    console.log("fetch sheet properties");
   } else {
-    console.error(console.error);
+    const error = await response.json();
+    console.error(error);
+    throw new Error("fetch sheet properties failed");
   }
 
-  const properties = await response.json<{
-    sheets: {
-      properties: {
-        sheetId: number;
-        title: string;
-      };
-    }[];
+  const data = await response.json<{
+    sheets: Sheet[];
   }>();
 
-  return properties;
+  return data.sheets;
 };
 
 // ---
 
-const fetchAccessToken = async (env: Env): Promise<string> => {
+export const fetchAccessToken = async (env: Env): Promise<string> => {
   const request = new Request("https://oauth2.googleapis.com/token");
   request.headers.append("Content-Type", "application/x-www-form-urlencoded");
 
@@ -208,9 +204,11 @@ const fetchAccessToken = async (env: Env): Promise<string> => {
   });
 
   if (response.ok) {
-    console.log(response.status);
+    console.log("fetch access token");
   } else {
-    console.error(console.error);
+    const error = await response.json();
+    console.error(error);
+    throw new Error("fetch access token failed");
   }
 
   const data = await response.json<{
@@ -222,15 +220,16 @@ const fetchAccessToken = async (env: Env): Promise<string> => {
 
 // ---
 
-const duplicateSheet = async (env: Env, date: Date, accessToken: string): Promise<string> => {
+export const duplicateSheet = async (
+  env: Env,
+  accessToken: string,
+  targetSheet: string,
+  newSheetName: string
+): Promise<Sheet> => {
   const sheetProperties = await fetchSheetProperties(env);
 
-  const targetSheet = format(date, "yyyy/M");
-
-  const sheet = sheetProperties.sheets.find((data) => data.properties.title === targetSheet);
+  const sheet = sheetProperties.find((data) => data.properties.title === targetSheet);
   console.log(sheet);
-
-  const sheetName = format(date.setMonth(date.getMonth() + 1), "yyyy/M");
 
   const request = new Request(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
@@ -250,8 +249,8 @@ const duplicateSheet = async (env: Env, date: Date, accessToken: string): Promis
         {
           duplicateSheet: {
             sourceSheetId: sheet?.properties.sheetId,
-            insertSheetIndex: 0,
-            newSheetName: sheetName,
+            insertSheetIndex: 1,
+            newSheetName: newSheetName,
           },
         },
       ],
@@ -263,19 +262,16 @@ const duplicateSheet = async (env: Env, date: Date, accessToken: string): Promis
   } else {
     const error = await response.json();
     console.error(error);
+    throw new Error("duplicate sheet failed");
   }
 
   const data = await response.json<{
     replies: [
       {
-        duplicateSheet: {
-          properties: {
-            title: string;
-          };
-        };
+        duplicateSheet: Sheet;
       },
     ];
   }>();
 
-  return data.replies[0].duplicateSheet.properties.title;
+  return data.replies[0].duplicateSheet;
 };

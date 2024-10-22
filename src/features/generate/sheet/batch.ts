@@ -1,16 +1,23 @@
+import { format } from "date-fns";
+
 import type { Env } from "~/@types/app";
-import { generateNextMonthSheet } from "~/apis/sheet";
+import { generateNextMonthSheet, fetchAccessToken, duplicateSheet } from "~/apis/sheet";
 
 export const handler = async (env: Env): Promise<void> => {
-  console.info(handler);
+  console.info("handler");
   const date = new Date(new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
   console.log(date);
 
-  const response = await generateNextMonthSheet(env, date);
+  const accessToken = await fetchAccessToken(env);
 
-  if (!response.ok) {
-    console.error(console.error);
-  }
+  // 翌月
+  date.setMonth(date.getMonth() + 1);
+  const newSheetName = format(date, "yyyy/M");
+
+  const targetSheet = "テンプレート";
+  const duplicatedSheet = await duplicateSheet(env, accessToken, targetSheet, newSheetName);
+
+  await generateNextMonthSheet(env, date, duplicatedSheet.properties.title, accessToken);
 };
 
 export const fetch = async (env: Env, request: Request): Promise<Response> => {
