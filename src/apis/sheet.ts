@@ -13,7 +13,7 @@ export type Env = {
   TEMPLATE_SHEET_ID: number;
 };
 
-type Sheetproperties = {
+type SheetProperties = {
   properties: {
     sheetId: number;
     title: string;
@@ -196,7 +196,7 @@ export const duplicateSheet = async (
   env: Env,
   accessToken: string,
   newSheetName: string
-): Promise<Sheetproperties> => {
+): Promise<SheetProperties> => {
   const request = new Request(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
       env.GOOGLE_SHEET_ID_WFO
@@ -232,7 +232,7 @@ export const duplicateSheet = async (
   const data = await response.json<{
     replies: [
       {
-        duplicateSheet: Sheetproperties;
+        duplicateSheet: SheetProperties;
       },
     ];
   }>();
@@ -242,7 +242,7 @@ export const duplicateSheet = async (
 
 // ---
 
-// const fetchSheetProperties = async (env: Env): Promise<Sheetproperties[]> => {
+// const fetchSheetProperties = async (env: Env): Promise<SheetProperties[]> => {
 //   const request = new Request(
 //     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID_WFO)}`
 //   );
