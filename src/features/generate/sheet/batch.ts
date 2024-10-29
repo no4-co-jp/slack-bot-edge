@@ -1,7 +1,7 @@
-import { format } from "date-fns";
+import { format, setDate, addMonths } from "date-fns";
 
 import type { Env } from "~/@types/app";
-import { changeToNextMonthSheet, fetchAccessToken, duplicateSheet } from "~/apis/sheet";
+import { fetchAccessToken, duplicateSheet, updateCells, findSheetByTitle } from "~/apis/sheet";
 
 export const handler = async (env: Env): Promise<void> => {
   console.info("handler");
@@ -11,13 +11,21 @@ export const handler = async (env: Env): Promise<void> => {
   try {
     const accessToken = await fetchAccessToken(env);
 
-    // 翌月
-    date.setMonth(date.getMonth() + 1);
-    const newSheetName = format(date, "yyyy/M");
+    // 翌月の1日目
+    const firstDayOfNextMonth = addMonths(setDate(date, 1), 1);
 
-    const duplicatedSheet = await duplicateSheet(env, accessToken, newSheetName);
+    const nextMonthSheetName = format(firstDayOfNextMonth, "yyyy/M");
 
-    await changeToNextMonthSheet(env, date, duplicatedSheet.properties.title, accessToken);
+    const nextMonthSheet = await findSheetByTitle(env, nextMonthSheetName);
+
+    if (!nextMonthSheet) {
+      const sourceSheetId = env.GOOGLE_TEMPLATE_SHEET_ID;
+      await duplicateSheet(env, accessToken, nextMonthSheetName, sourceSheetId);
+
+      await updateCells(env, accessToken, nextMonthSheetName, "A4", [
+        [format(firstDayOfNextMonth, "yyyy/MM/dd")],
+      ]);
+    }
   } catch (e) {
     console.error(e);
   }
