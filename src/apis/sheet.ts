@@ -10,10 +10,10 @@ export type Env = {
   OAUTH_CLIENT_ID: string;
   OAUTH_CLIENT_SECRET: string;
   REFRESH_TOKEN: string;
-  AUTHORIZATION_CODE: string;
+  TEMPLATE_SHEET_ID: number;
 };
 
-type Sheet = {
+type Sheetproperties = {
   properties: {
     sheetId: number;
     title: string;
@@ -63,7 +63,7 @@ export const isBusinessHoliday = async (env: Env, date: Date): Promise<boolean> 
 
 // ---
 
-export const generateNextMonthSheet = async (
+export const changeToNextMonthSheet = async (
   env: Env,
   date: Date,
   targetSheet: string,
@@ -97,8 +97,6 @@ export const generateNextMonthSheet = async (
   if (response.ok) {
     console.log("generated next month sheet");
   } else {
-    const error = await response.json();
-    console.error(error);
     throw new Error("generate next month sheet failed");
   }
 };
@@ -163,30 +161,6 @@ const fetchSheets = async (env: Env, range: string): Promise<string[][]> => {
 
 // ---
 
-const fetchSheetProperties = async (env: Env): Promise<Sheet[]> => {
-  const request = new Request(
-    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID_WFO)}`
-  );
-  request.headers.append("x-goog-api-key", env.GOOGLE_API_KEY);
-
-  const response = await fetch(request);
-  if (response.ok) {
-    console.log("fetch sheet properties");
-  } else {
-    const error = await response.json();
-    console.error(error);
-    throw new Error("fetch sheet properties failed");
-  }
-
-  const data = await response.json<{
-    sheets: Sheet[];
-  }>();
-
-  return data.sheets;
-};
-
-// ---
-
 export const fetchAccessToken = async (env: Env): Promise<string> => {
   const request = new Request("https://oauth2.googleapis.com/token");
   request.headers.append("Content-Type", "application/x-www-form-urlencoded");
@@ -206,8 +180,6 @@ export const fetchAccessToken = async (env: Env): Promise<string> => {
   if (response.ok) {
     console.log("fetch access token");
   } else {
-    const error = await response.json();
-    console.error(error);
     throw new Error("fetch access token failed");
   }
 
@@ -223,14 +195,8 @@ export const fetchAccessToken = async (env: Env): Promise<string> => {
 export const duplicateSheet = async (
   env: Env,
   accessToken: string,
-  targetSheet: string,
   newSheetName: string
-): Promise<Sheet> => {
-  const sheetProperties = await fetchSheetProperties(env);
-
-  const sheet = sheetProperties.find((data) => data.properties.title === targetSheet);
-  console.log(sheet);
-
+): Promise<Sheetproperties> => {
   const request = new Request(
     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(
       env.GOOGLE_SHEET_ID_WFO
@@ -248,7 +214,7 @@ export const duplicateSheet = async (
       requests: [
         {
           duplicateSheet: {
-            sourceSheetId: sheet?.properties.sheetId,
+            sourceSheetId: env.TEMPLATE_SHEET_ID,
             insertSheetIndex: 1,
             newSheetName: newSheetName,
           },
@@ -260,18 +226,40 @@ export const duplicateSheet = async (
   if (response.ok) {
     console.log("duplicated sheet");
   } else {
-    const error = await response.json();
-    console.error(error);
     throw new Error("duplicate sheet failed");
   }
 
   const data = await response.json<{
     replies: [
       {
-        duplicateSheet: Sheet;
+        duplicateSheet: Sheetproperties;
       },
     ];
   }>();
 
   return data.replies[0].duplicateSheet;
 };
+
+// ---
+
+// const fetchSheetProperties = async (env: Env): Promise<Sheetproperties[]> => {
+//   const request = new Request(
+//     `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(env.GOOGLE_SHEET_ID_WFO)}`
+//   );
+//   request.headers.append("x-goog-api-key", env.GOOGLE_API_KEY);
+
+//   const response = await fetch(request);
+//   if (response.ok) {
+//     console.log("fetch sheet properties");
+//   } else {
+//     throw new Error("fetch sheet properties failed");
+//   }
+
+//   const data = await response.json<{
+//     sheets: Sheetproperties[];
+//   }>();
+
+//   return data.sheets;
+// };
+
+// ---
