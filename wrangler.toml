@@ -2,3 +2,5 @@ compatibility_date = "2023-10-16"
 kv_namespaces = [
   { binding = "SLACK_BOT_KV", id = "${SLACK_BOT_KV_ID}" }
 ]
+[observability]
+enabled = true
