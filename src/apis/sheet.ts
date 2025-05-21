@@ -1,3 +1,5 @@
+import { createSign } from "node:crypto";
+
 import { format } from "date-fns";
 
 import { isHoliday } from "./holiday";
@@ -6,10 +8,9 @@ import { isHoliday } from "./holiday";
 
 export type Env = {
   GOOGLE_API_KEY: string;
+  GOOGLE_CLIENT_EMAIL: string;
   GOOGLE_SHEET_ID_WFO: string;
-  GOOGLE_OAUTH_CLIENT_ID: string;
-  GOOGLE_OAUTH_CLIENT_SECRET: string;
-  GOOGLE_REFRESH_TOKEN: string;
+  GOOGLE_PRIVATE_KEY: string;
   GOOGLE_TEMPLATE_SHEET_ID: string;
 };
 
@@ -159,14 +160,80 @@ const fetchSheets = async (env: Env, range: string): Promise<string[][]> => {
 // ---
 
 export const fetchAccessToken = async (env: Env): Promise<string> => {
+  // JWT
+  const base64urlEncode = (str: string): string => {
+    return btoa(str).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+  };
+
+  function keyToArrayBuffer(pem: string): ArrayBuffer {
+    const base64 = pem
+      .replace(/\\\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/-----BEGIN PRIVATE KEY-----/, "")
+      .replace(/-----END PRIVATE KEY-----/, "")
+      .replace(/[\r\n]+/g, "");
+    const binary = atob(base64);
+    const buffer = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return buffer.buffer;
+  }
+
+  const arrayBufferToBase64Url = (buffer: ArrayBuffer) => {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return base64urlEncode(binary);
+  };
+
+  const header = { alg: "RS256", typ: "JWT" };
+
+  const now = Math.floor(Date.now() / 1000);
+
+  const payload = {
+    iss: env.GOOGLE_CLIENT_EMAIL,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  };
+
+  // JWTのヘッダー・ペイロードをBase64URLエンコード
+  const encodedHeader = base64urlEncode(JSON.stringify(header));
+  const encodedPayload = base64urlEncode(JSON.stringify(payload));
+  const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+
+  // WEB Crypto APIで署名
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8",
+    keyToArrayBuffer(env.GOOGLE_PRIVATE_KEY),
+    {
+      name: "RSASSA-PKCS1-v1_5",
+      hash: "SHA-256",
+    },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    new TextEncoder().encode(unsignedToken)
+  );
+
+  const encodedSignature = arrayBufferToBase64Url(signature);
+
+  const jwt = `${unsignedToken}.${encodedSignature}`;
+
   const request = new Request("https://oauth2.googleapis.com/token");
   request.headers.append("Content-Type", "application/x-www-form-urlencoded");
 
   const body = new URLSearchParams({
-    client_id: env.GOOGLE_OAUTH_CLIENT_ID,
-    client_secret: env.GOOGLE_OAUTH_CLIENT_SECRET,
-    refresh_token: env.GOOGLE_REFRESH_TOKEN,
-    grant_type: "refresh_token",
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion: jwt,
   });
 
   const response = await fetch(request, {
@@ -214,7 +281,7 @@ export const duplicateSheet = async (
         {
           duplicateSheet: {
             sourceSheetId: sourceSheetId,
-            insertSheetIndex: 1,
+            insertSheetIndex: 2,
             newSheetName: newSheetName,
           },
         },
