@@ -1,4 +1,5 @@
 compatibility_date = "2023-10-16"
+preview_urls = false
 kv_namespaces = [
   { binding = "SLACK_BOT_KV", id = "${SLACK_BOT_KV_ID}" }
 ]
